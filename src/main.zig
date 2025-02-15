@@ -1,45 +1,39 @@
-//! By convention, main.zig is where your main function lives in the case that
-//! you are building an executable. If you are making a library, the convention
-//! is to delete this file and start with root.zig instead.
+const console = @import("./console.zig");
 
-pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+const ALIGN = 1 << 0;
+const MEMINFO = 1 << 1;
+const MAGIC = 0x1BADB002;
+const FLAGS = ALIGN | MEMINFO;
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+const MultibootHeader = packed struct {
+    magic: i32 = MAGIC,
+    flags: i32,
+    checksum: i32,
+    padding: u32 = 0,
+};
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+export var multiboot align(4) linksection(".multiboot") = MultibootHeader{
+    .flags = FLAGS,
+    .checksum = -(MAGIC + FLAGS),
+};
 
-    try bw.flush(); // Don't forget to flush!
+var stack_bytes: [16 * 1024]u8 align(16) linksection(".bss") = undefined;
+
+export fn _start() callconv(.Naked) noreturn {
+    asm volatile (
+        \\ movl %[stack_top], %%esp
+        \\ movl %%esp, %%ebp
+        \\ call %[kmain:P]
+        :
+        : [stack_top] "i" (@as([*]align(16) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
+          [kmain] "X" (&kmain),
+    );
+    while (true) {}
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+fn kmain() callconv(.C) void {
+    console.initialize();
+    console.puts("Hello world");
+    console.setColor(4);
+    console.putChar('!');
 }
-
-test "use other module" {
-    try std.testing.expectEqual(@as(i32, 150), lib.add(100, 50));
-}
-
-test "fuzz example" {
-    const global = struct {
-        fn testOne(input: []const u8) anyerror!void {
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
-        }
-    };
-    try std.testing.fuzz(global.testOne, .{});
-}
-
-const std = @import("std");
-
-/// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
-const lib = @import("osProj_lib");
