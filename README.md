@@ -21,9 +21,9 @@ This is a OS for -
 - [ ] Gradually add more features like user mode, system calls, etc.
 
 ## Requirements
-- zig (0.14dev)
+- zig (0.14.0-dev)
 - qemu
-- grub
+- grub (MacOS users look below for withour grub)
 
 ### How to run
 
@@ -34,6 +34,12 @@ Creates the .elf file from the program and using grub creates a .iso file in the
 
 ```bash
 qemu-system-i386 -cdrom kernel.iso
+```
+
+For MacOS users to load without a grub-mkrescue to make a iso image
+```bash
+zig build
+qemu-system-i386 -kernel zig-out/bin/kernel.elf
 ```
 
 ### References
